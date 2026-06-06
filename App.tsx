@@ -1530,7 +1530,7 @@ O que você decide realizar em seguida na cena? Faça sua jogada ou continue des
   const renderContent = () => {
     const activeSession = activeSessionId ? sessions.find(s => s && s.id === activeSessionId) : null;
     const isLocalCapable = activeSession && (activeSession.type === 'IA' || activeSession.type === 'RPG');
-    const isNetworkRequiredState = gameState === GameState.FEED || gameState === GameState.DRAFTS || (gameState === GameState.PLAYING && activeCommunity);
+    const isNetworkRequiredState = gameState === GameState.FEED || gameState === GameState.DRAFTS || gameState === GameState.LOBBY || gameState === GameState.COMMUNITY_SEARCH || gameState === GameState.RANKING || gameState === GameState.SOCIAL_DISCOVERY || gameState === GameState.RECENT_CHATS || (gameState === GameState.PLAYING && activeCommunity);
     if (isOffline && isNetworkRequiredState && !isLocalCapable) {
       return (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-50 select-none relative animate-game-card-entry" id="offline-screen">
