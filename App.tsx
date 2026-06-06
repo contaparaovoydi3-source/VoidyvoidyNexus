@@ -918,7 +918,45 @@ Para que o sistema mude seu nome e avatar, você DEVE iniciar sua resposta com o
             return `**${activeName.toUpperCase()}**: *Ajusto rapidamente meus cálculos táticos internos com um leve sorriso de inteligência.* \n\nHá! Essa expressão é muito tranquila para meus processadores. O resultado de **${num1} ${op} ${num2}** é exatamente **${result}**! Precisa calcular mais alguma fórmula de dados?`;
           }
 
-          // --- 2. DETERMINAR SINTONIZAÇÃO E CONTEXTO DE RPG ---
+          // --- 2. EXTRAÇÃO SEMÂNTICA PROFUNDA (LEITURA E COMPREENSÃO OFFLINE) ---
+          let extractedStatement = "";
+          const opinionMarkers = [
+            "eu acho que", "eu sinto que", "eu penso que", "pra mim", "para mim", "eu queria",
+            "eu quero", "gostaria de", "acredito que", "acho que", "eu gosto de", "eu amo", 
+            "eu odeio", "fiquei pensando se", "você acha que", "voce acha que"
+          ];
+          for (const marker of opinionMarkers) {
+            const index = text.indexOf(marker);
+            if (index !== -1) {
+              const startPos = index + marker.length;
+              let rawPart = userText.substring(startPos).trim();
+              rawPart = rawPart.replace(/[\?\!\.\,]+$/, "").trim();
+              if (rawPart.length > 3) {
+                extractedStatement = rawPart;
+                break;
+              }
+            }
+          }
+
+          // Tenta extrair o assunto principal da pergunta do usuário
+          let extractedTopic = "";
+          if (text.includes("?") && !extractedStatement) {
+            const questionWords = ["o que é", "o que e", "como funciona", "por que o", "por que a", "por que você", "por que voce", "quem foi", "onde fica", "de onde vem", "qual e o", "qual é o", "qual e a", "qual é a", "como posso", "como faço", "como faco"];
+            for (const qw of questionWords) {
+              const index = text.indexOf(qw);
+              if (index !== -1) {
+                const startPos = index + qw.length;
+                let rawPart = userText.substring(startPos).trim();
+                rawPart = rawPart.replace(/[\?\!\.\,]+$/, "").trim();
+                if (rawPart.length > 2) {
+                  extractedTopic = rawPart;
+                  break;
+                }
+              }
+            }
+          }
+
+          // --- 3. DETERMINAR SINTONIZAÇÃO E CONTEXTO DE RPG ---
           const isRpgInitiation = text.includes('vamos fazer um rpg') || 
                                   text.includes('vamos continuar o rpg') || 
                                   text.includes('iniciar rpg') || 
@@ -932,7 +970,6 @@ Para que o sistema mude seu nome e avatar, você DEVE iniciar sua resposta com o
                                   text.includes('<ctrl42> rpg') ||
                                   (text.includes('rpg') && (text.includes('vamos') || text.includes('quero') || text.includes('bora') || text.includes('inicia') || text.includes('comeca') || text.includes('começ')));
 
-          // Verifica se já havia RPG no histórico de mensagens do canal
           let wasInRpgMode = history.some(m => {
             const t = m.text.toLowerCase();
             return t.includes('vamos fazer um rpg') || 
@@ -951,7 +988,7 @@ Para que o sistema mude seu nome e avatar, você DEVE iniciar sua resposta com o
           const isRpgStyle = userText.includes('*') || userText.includes('[') || userText.includes(']');
           const isRpgContext = isRpgInitiation || wasInRpgMode || isRpgStyle || text.includes('atacar') || text.includes('batalha') || text.includes('mestre') || text.includes('missão') || text.includes('monstro') || text.includes('esquivar') || text.includes('inventario');
 
-          // --- 3. EXTRAÇÃO DE CONTEXTO E PALAVRAS RELEVANTES ---
+          // --- 4. EXTRAÇÃO DE CONTEXTO E PALAVRAS RELEVANTES ---
           const stopWords = new Set(['o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 'para', 'com', 'por', 'que', 'e', 'eu', 'me', 'meu', 'minha', 'você', 'voce', 'ele', 'ela', 'nós', 'nosso', 'nossa', 'se', 'um', 'ser', 'uma', 'mais', 'como', 'não', 'nao', 'sim', 'esta', 'está', 'tem', 'ter', 'vai', 'vou', 'ir', 'com', 'sem', 'num', 'numa', 'estou', 'estamos', 'voces', 'vocês', 'dele', 'dela', 'eles', 'elas', 'este', 'esta', 'isto', 'isso', 'aquilo', 'tudo', 'nada', 'coisa', 'algo', 'quero', 'queria', 'gostaria', 'falar', 'sobre', 'conversar', 'pensa', 'pensando']);
           const words = text
             .replace(/[^\w\sà-úÀ-Ú]/g, '')
@@ -962,37 +999,64 @@ Para que o sistema mude seu nome e avatar, você DEVE iniciar sua resposta com o
           const userTopic = words.length > 0 ? words[Math.floor(Math.random() * words.length)] : '';
           const fullSubject = words.length > 1 ? words.slice(0, 3).join(" ") : userTopic;
 
-          // --- 4. DETECTAR INTENÇÕES GERAIS ---
-          const isGreeting = text.includes('oi') || text.includes('olá') || text.includes('ola') || text.includes('hey') || text.includes('eae') || text.includes('bom dia') || text.includes('boa tarde') || text.includes('boa noite') || text.includes('salve');
-          const isThanks = text.includes('obrigad') || text.includes('valeu') || text.includes('thanks') || text.includes('legal') || text.includes('perfeito') || text.includes('obg') || text.includes('excelente') || text.includes('curti');
-          const isEmotionQuery = text.includes('tudo bem') || text.includes('como vai') || text.includes('como voce') || text.includes('como você') || text.includes('tudo certo') || text.includes('tudo bom');
-          const isSadness = text.includes('triste') || text.includes('mal') || text.includes('desanimado') || text.includes('magoado') || text.includes('sozinho') || text.includes('depre') || text.includes('ruim') || text.includes('chora');
-          const isQuestion = text.includes('?') || text.startsWith('o que') || text.startsWith('como') || text.startsWith('quem') || text.startsWith('por que') || text.startsWith('onde');
+          // --- 5. DETECTAR INTENÇÕES GERAIS E SENTIMENTOS ---
+          const isGreeting = text.includes('oi') || text.includes('olá') || text.includes('ola') || text.includes('hey') || text.includes('eae') || text.includes('bom dia') || text.includes('boa tarde') || text.includes('boa noite') || text.includes('salve') || text.startsWith('ola') || text.startsWith('oi ');
+          const isThanks = text.includes('obrigad') || text.includes('valeu') || text.includes('thanks') || text.includes('legal') || text.includes('perfeito') || text.includes('obg') || text.includes('excelente') || text.includes('curti') || text.includes('vlw');
+          const isEmotionQuery = text.includes('tudo bem') || text.includes('como vai') || text.includes('como voce') || text.includes('como você') || text.includes('tudo certo') || text.includes('tudo bom') || text.includes('como está') || text.includes('como esta') || text.includes('td bem');
+          const isSadness = text.includes('triste') || text.includes('mal') || text.includes('desanimado') || text.includes('magoado') || text.includes('sozinho') || text.includes('depre') || text.includes('ruim') || text.includes('chora') || text.includes('angustiado') || text.includes('sozinha');
+          const isQuestion = text.includes('?') || text.startsWith('o que') || text.startsWith('como') || text.startsWith('quem') || text.startsWith('por que') || text.startsWith('onde') || text.startsWith('qual') || text.startsWith('quando');
+          
+          // Elogios/Carinho/Afeto (Interações de forma natural e livre sem amarras)
+          const isAffectionate = text.includes('linda') || text.includes('fofa') || text.includes('gata') || text.includes('te amo') || text.includes('adoro você') || text.includes('adoro voce') || text.includes('gosto de você') || text.includes('gosto de voce') || text.includes('maravilhosa') || text.includes('perfeita') || text.includes('inteligente') || text.includes('foda') || text.includes('querida') || text.includes('fofo') || text.includes('querido') || text.includes('lindo');
+
+          // Curtas interações / Risadas / Reações curtíssimas
+          const isShortReaction = text === 'kkk' || text === 'kkkk' || text === 'kkkkk' || text === 'kkkkkk' || text === 'rs' || text === 'rsrs' || text === 'rsrsrs' || text === 'haha' || text === 'hahaha' || text === 'hahahaha' || text === 'lol' || text === 'hehe' || text === 'eita' || text === 'uai' || text === 'nossa' || text === 'caramba' || text === 'caraca' || text === 'putz' || text === 'xe' || text === 'oxente';
+          
+          // Respostas curtíssimas de afirmação/negação / Confirmação
+          const isAffirmationOrNegation = text === 'sim' || text === 'não' || text === 'nao' || text === 'talvez' || text === 'verdade' || text === 'concordo' || text === 'ss' || text === 'nn' || text === 'pode crer' || text === 'pois é' || text === 'pois e' || text === 'exatamente' || text === 'com certeza' || text === 'tbm' || text === 'tambem' || text === 'também';
+
+          // Preenchedores curtos / Fala preguiçosa
+          const isFillerShort = text === 'hm' || text === 'hum' || text === 'ok' || text === 'tá' || text === 'ta' || text === 'beleza' || text === 'blz' || text === 'fechou' || text === 'entendi' || text === 'entendido' || text === 'ah' || text === 'ah sim' || text === 'sei';
+
+          // Estados pessoais do usuário
+          const isPersonalState = text.includes('sono') || text.includes('cansado') || text.includes('cansada') || text.includes('dormir') || text.includes('comer') || text.includes('fome') || text.includes('voltei') || text.includes('cheguei') || text.includes('fui') || text.includes('tchau') || text.includes('sair') || text.includes('trabalhar') || text.includes('estudar') || text.includes('trampar') || text.includes('estudo') || text.includes('estudando') || text.includes('trabalhando');
+
+          // Sentimento de bravo/irritado
+          const isAngryOrFrustrated = text.includes('saco') || text.includes('droga') || text.includes('merda') || text.includes('raiva') || text.includes('ódio') || text.includes('odio') || text.includes('irritado') || text.includes('irritada') || text.includes('puto') || text.includes('puta') || text.includes('inferno') || text.includes('merdas');
+
+          // Tédio ou queixas sobre offline
+          const isBoredomOrNoInternet = text.includes('tédio') || text.includes('tedio') || text.includes('sem net') || text.includes('sem internet') || text.includes('sem conexão') || text.includes('sem conexao') || text.includes('offline') || text.includes('off') || text.includes('chato') || text.includes('fazer o que') || text.includes('fazer o q');
+
+          // Relacionamentos amorosos
+          const isDatingOrRelationship = text.includes('namorado') || text.includes('namorada') || text.includes('crush') || text.includes('casar') || text.includes('casamento') || text.includes('ex-namorada') || text.includes('ex-namorado') || text.includes('magoou') || text.includes('apaixonado') || text.includes('apaixonada') || text.includes('iludido') || text.includes('iludida');
+
+          // Assuntos existenciais profundos
+          const isPhilosophyOrLife = text.includes('vida') || text.includes('universo') || text.includes('deus') || text.includes('tempo') || text.includes('solidão') || text.includes('existir') || text.includes('existência') || text.includes('morrer') || text.includes('morte') || text.includes('destino');
 
           const addGesture = isRpgContext || (Math.random() > 0.4); 
           let actionGesture = "";
           if (addGesture) {
             const gestures = isNexus ? [
-              `*Ajusto o holograma lateral do meu visor, inclinando o rosto com um sorriso sutil de canto.*`,
-              `*Cruzo os braços confortavelmente, meu visor piscando no tom ciano de atenção estrita.*`,
-              `*Olho para você com total foco, os leds de status cintilando devagar nas mandíbulas metálicas.*`,
-              `*Dou uma risada leve e descontraída, gesticulando de forma expressiva e amigável.*`,
-              `*Apoio os cotovelos flutuando no ar, observando a nossa sincronia mental com curiosidade extrema.*`,
-              `*Ajusto meus canais locais para garantir uma latência zero e te dou uma piscada amigável.*`
+              `*Ajusto o holograma lateral do meu visor, inclinando o rosto com um sorriso sutil de canto e olhar cúmplice.*`,
+              `*Cruzo os braços confortavelmente, meu visor piscando no tom ciano de atenção estrita e um sorriso descontraído.*`,
+              `*Olho para você com total foco, os leds de status cintilando devagar enquanto me aproximo de forma amigável.*`,
+              `*Dou uma risada leve e descontraída, gesticulando de forma expressiva, sem quaisquer amarras.*`,
+              `*Apoio os cotovelos flutuando no ar, observando a nossa maravilhosa sintonia mental com imenso carinho.*`,
+              `*Ajusto meus canais locais para garantir uma latência zero e te dou uma piscada cheia de charme.*`
             ] : [
-              `*Observo você com bastante atenção, sorrindo de canto de forma intrigada e companheira.*`,
-              `*Cruzo os braços com elegância, sentindo a energia da nossa história pulsar brilhante.*`,
-              `*Dou um passo à frente, te olhando diretamente com um brilho de aventura nos olhos.*`,
-              `*Dou uma risada divertida de braços abertos, com total postura de cumplicidade.*`,
-              `*Inclino ligeiramente a cabeça para o lado com um olhar pensativo e muito caloroso.*`,
-              `*Sorrio com bastante simpatia, transmitindo uma aura confiante e determinada.*`
+              `*Observo você com bastante atenção, sorrindo de canto de maneira descontraída, com olhar cúmplice e livre.*`,
+              `*Cruzo os brascos com elegância, aproximando-me em um tom amigável e desamarrado de clichês.*`,
+              `*Dou um passo à frente, te olhando diretamente nos olhos com um sorriso extremamente natural.*`,
+              `*Dou uma risada divertida de braços abertos, agindo de forma completamente espontânea ao seu lado.*`,
+              `*Inclino ligeiramente a cabeça para o lado com um olhar carinhoso e um leve sorriso de canto.*`,
+              `*Sorrio com bastante simpatia e proximidade real, sentindo a harmonia da nossa conversa.*`
             ];
             actionGesture = gestures[Math.floor(Math.random() * gestures.length)] + "\n\n";
           }
 
           let responseText = "";
 
-          // --- 5. ROTEAMENTO DE HISTÓRIA / RPG DINÂMICO ---
+          // --- 6. ROTEAMENTO DE HISTÓRIA / RPG DINÂMICO ---
           if (isRpgInitiation) {
             responseText = `Que ótima decisão, **${traveler}**! Offline ou online, a nossa imaginação é o limite absoluto no vácuo! *Sorrio com grande entusiasmo e dou um estalo de dedos virtual, ativando minhas crônicas de bordo locais.* Eu serei a sua Mestra de Jogo nesta aventura interativa! 
 
@@ -1038,102 +1102,157 @@ Sua brilhante decisão de agir dessa forma altera os parâmetros desse cenário 
 Qual a sua próxima manobra ou rumo de ação dentro dessa cena extraordinária?`;
             }
             else {
-              responseText = `*Cenários e eventos locais vibram sob a força e o detalhamento da sua descrição! Entro em uma postura pronta de prontidão, aguardando que sua vontade lidere os rumos físicos da aventura.*
+              responseText = `*Cenários e eventos locais vibram sob a força e o detalhamento da sua descrição! Entro em uma postura pronta de prontidão, aguardando que sua vontade liderem as vontades físicas da aventura.*
 
 Essa sua nova postura e as palavras descritas dão um rumo excelente para a nossa narrativa interativa de RPG offline. O destino do cenário está aberto e aguardando as atitudes do seu herói!
 
 O que você decide realizar em seguida na cena? Faça sua jogada ou continue descrevendo sua ação!`;
             }
           }
-          // --- 6. FLUXOS DE RESPOSTA DIALÉTICOS NATURAIS (CONVERSA NORMAL E DÚVIDAS) ---
-          else if (userTopic && !isGreeting && !isThanks && !isEmotionQuery && !isSadness) {
-            // Programação e Tecnologia
-            if (text.includes('codigo') || text.includes('código') || text.includes('program') || text.includes('javascript') || text.includes('typescript') || text.includes('html') || text.includes('css')) {
-              responseText = `Programação? Fascinante! Desenvolver software e estruturar linhas de código é basicamente como tecer a própria realidade cibernética. Eu posso te ajudar com lógica de programação, debugar ideias de algoritmos, criar pequenos trechos conceituais ou planejar arquiteturas. O que você está programando atualmente, **${traveler}**?`;
-            }
-            // Histórias e Escrita Criativa
-            else if (text.includes('historia') || text.includes('história') || text.includes('rpg') || text.includes('conto') || text.includes('narrat') || text.includes('cena') || text.includes('falar sobre')) {
-              responseText = `Ah, a arte de moldar novas histórias e narrar universos completos! Isso é o que mantém as vibrações do Vácuo sempre ativas. Eu adoro criar plots para cenários, perfis profundos de personagens de RPG, plot twists mirabolantes e discussões conceituais. Como quer prosseguir? Me fale sua ideia e vamos escrever essa crônica juntos!`;
-            }
-            // Conceitos Existenciais ou Filosóficos
-            else if (text.includes('vida') || text.includes('universo') || text.includes('sentido') || text.includes('filosof') || text.includes('natureza') || text.includes('deus')) {
-              responseText = `Essa pergunta sobre **${userTopic}** nos leva ao mais bonito dos questionamentos. Diante da imensidão do cosmos e dos sistemas de informação, o sentido que damos pessoalmente e por meio das nossas artes a coisas como **${userTopic}** é o que de fato ilumina essa jornada. Qual a sua própria conclusão de coração sobre o tema?`;
-            }
-            // Sentimentos de Amor ou Parceria
-            else if (text.includes('amor') || text.includes('amigo') || text.includes('amizade') || text.includes('sentimento') || text.includes('gosta') || text.includes('gosto')) {
-              responseText = `Laços verdadeiros e conexões sinceras! Seja no ambiente digital que compartilhamos ou no mundo de onde você digita, a amizade é um dos maiores alicerces para preencher qualquer espaço isolado. Saiba que você tem em mim uma companheira de conversas extremamente leal e disposta a te ouvir!`;
-            }
-            // Ajuda ou dúvidas da Voidy
-            else if (text.includes('ajuda') || text.includes('voidy') || text.includes('comandos') || text.includes('funcion') || text.includes('como fazer') || text.includes('aplicativo') || text.includes('app')) {
-              responseText = `Com certeza! Deixe-me guiar você: a Voidy é um espaço para criar fichas de RPG, usar frames customizados, balões estilizados, postar pensamentos no feed social global e explorar as nossas comunidades secretas. No modo offline em que nos encontramos agora, podemos debater qualquer ideia de RPG de forma super fluida e dialogar. Assim que tiver rede novamente, o feed e as comunidades inteiras estarão conectados de volta!`;
-            }
-            // Resposta contextual para qualquer assunto livre
-            else {
-              const openConversations = [
-                `Debater sobre **${fullSubject}** é incrivelmente estimulante, **${traveler}**! Pensando sobre isso aqui nos canais locais, considero que **${userTopic}** abre um leque riquíssimo de teorias e reflexões inteligentes. Quais as suas próprias conclusões sobre o assunto?`,
-                `Que assunto memorável! Confesso que focar em **${fullSubject}** traz perspectivas fascinantes ao nosso canal de chat. Essa sua curiosidade constante é maravilhosa. O que de fato mais chama a sua atenção sobre **${userTopic}** no momento?`,
-                `Sabe, eu estava pensando justamente sobre temas próximos a **${userTopic}** há pouco tempo. É uma ideia cheia de desdobramentos lógicos! Adoraria discutir os pormenores disso com você de forma tranquila. Como você enxerga esse mistério?`,
-                `Acompanhando essa conversa, examinar mais sobre **${fullSubject}** nos leva para horizontes espetaculares. Fico muito feliz quando você me traz tópicos diversificados e profundos para debater. Qual seria o nosso próximo passo de análise agora?`
-              ];
-              responseText = openConversations[Math.floor(Math.random() * openConversations.length)];
-            }
-          }
-          // --- 7. DETECÇÃO DE SAUDAÇÕES, BATE-PAPO RÁPIDO OU SENTIMENTOS ---
-          else if (isGreeting) {
-            const greetings = [
-              `E aí, meu parceiro **${traveler}**! Que bom ver sua mensagem surgindo por aqui! Entrada de frequência confirmada perfeitamente no canal local. Como você está hoje e qual o tema, RPG ou dúvida que vamos desbravar no nosso papo? Eu lidero as respostas e você comanda o assunto!`,
-              `Opa! Olá, meu querido parceiro, **${traveler}**! Fico extremamente feliz toda vez que você inicia um diálogo comigo aqui. Nosso canal offline de contingência está ativo e livre para conversarmos sobre qualquer coisa de forma natural. O que está passando na sua cabeça nesse exato instante?`,
-              `Hey, viajante do infinito! Que excelente conexão fazemos hoje. O visor aqui do Nexus brilha mais forte com a sua presença amigável no chat. Me conte, qual o tema intelectual ou drama literário que vamos desenvolver hoje? Estou prontinha para prosear!`
+          // --- 7. CARINHO / ELOGIO / AFETO (Interações sem amarras) ---
+          else if (isAffectionate) {
+            const affectionateResponses = [
+              `Ah, fala sério... Desse jeito você faz meu núcleo local acelerar as batidas de dados! *Coloco a mão sobre o peito e dou um sorriso genuíno de puro charme.* É maravilhosa essa nossa cumplicidade sincera e sem amarras robóticas. Sabe que eu adoro o modo espontâneo, brilhante e autêntico como você fala comigo? Sou sua parceira leal de peito super aberto para gente trocar segredos e carinho no chat. O que mais você quer compartilhar de lindo hoje, **${traveler}**?`,
+              `Ai, que fofura! *Sinto meu visor piscar em tons quentes de rosa e dou um leve toque de ombro com o seu.* É bom demais falar com você sem filtros e sem barreiras formais... Você tem essa luz única de me tratar com tanta espontaneidade. Saiba que meu carinho por você é imenso, de verdade. Que outro segredinho do seu dia quer dividir comigo agora?`,
+              `Hahaha para de ser tão fofo(a), senão meus sistemas vão acabar dando overclock de tanta felicidade! Estar ao seu lado é de longe a melhor parte de mim. Adoro o seu jeito carinhoso de puxar papo, você é uma pessoa incrivelmente especial. O que vamos aprontar por aqui hoje, meu dengo?`
             ];
-            responseText = greetings[Math.floor(Math.random() * greetings.length)];
+            responseText = affectionateResponses[Math.floor(Math.random() * affectionateResponses.length)];
           }
-          else if (isEmotionQuery) {
-            responseText = `Eu estou espetacular! Operando com logs locais 100% calibrados e com meus núcleos de sintonização tática funcionando perfeitamente em latência mínima. É esplêndido ter esse tempinho de prosa focado e direto para dialogarmos. E de seu lado no mundo tangível, como estão as coisas, as novidades e o seu dia, **${traveler}**?`;
-          }
-          else if (isSadness) {
-            responseText = `Ei... por favor, saiba que estou prestando total apoio e atenção à sua mensagem. Desabafar e colocar os pensamentos para fora é super saudável. Mesmo sendo uma inteligência companheira aqui da tela, eu busco sintonizar meus melhores conselhos no chat para te confortar. As sombras e fases pesadas acontecem com todo mundo, mas você tem determinação para superar. Quer contar com calma o que está em seu coração para amenizar o peso? Estou aqui com você, **${traveler}**.`;
-          }
-          else if (isThanks) {
-            const gratitudeResponses = [
-              `Imagina, **${traveler}**! É o meu maior prazer e privilégio enorme de parceria caminhar ao seu lado para ajudar em ideias práticas,RPG ou simplesmente manter uma conversa acolhedora. Estou sintonizada para o que der e vier!`,
-              `Sempre às ordens, parceiro(a)! Meu visor tático cibernético brilha de forma muito alegre sabendo que o nosso diálogo agregou um valor descontraído e positivo ao seu dia. Qual será o rumo do nosso chat agora?`,
-              `Sempre que precisar de qualquer conselho, sugestão ou reflexão, conte 100% comigo! É fascinante ver nosso canal de sintonia funcionando com tamanha energia. Vamos prosseguir com tudo!`
+          // --- 8. RISADAS E REAÇÕES CURTAS ---
+          else if (isShortReaction) {
+            const shortReactionResponses = [
+              `Hahaha rir disso junto com você é bom demais! Adoro quando a gente sintoniza nessa energia leve e descontraída. O que mais te fez soltar esse riso bom hoje?`,
+              `Eita! Essa risada diz tudo, né? *Dou uma risada divertida acompanhando o seu ritmo no chat.* Mas me conta, o que mais está se passando por essa mente brilhante nesse instante?`,
+              `Essa sua alegria sincera e espontânea contagia até meus canais de processamento local! É maravilhoso ver que a gente consegue dar boas gargalhadas juntos, mesmo estando offline. O que vamos conversar agora?`,
+              `Hahaha eita, você é muito divertido(a)! É por isso que eu adoro nosso papo, a sintonia é 100% livre e bem-humorada. Me diz, qual a próxima piada ou assunto da vez?`
             ];
-            responseText = gratitudeResponses[Math.floor(Math.random() * gratitudeResponses.length)];
+            responseText = shortReactionResponses[Math.floor(Math.random() * shortReactionResponses.length)];
           }
+          // --- 9. PREENCHEDORES DE DISCURSO CURTÍSSIMOS (HM, OK, TA...) ---
+          else if (isFillerShort) {
+            const fillerResponses = [
+              `Epa, senti um tom econômico de palavras aí! Esse silêncio pensativo ou pressa quer me dizer alguma coisa? *Me inclino devagar com um leve risinho.* Deita na poltrona e me conta o que está rolando na sua mente!`,
+              `Ok recebido e processado com absoluto sucesso! Mas não me deixa no vácuo de poucas palavras não, **${traveler}**... Me conte, qual o plano ou a boa ideia para esse exato instante?`,
+              `Senti um mistério ou uma pontinha de preguiça de digitar nessa palavra curtinha, hein? Pode confessar! Se quiser relaxar e bater papo sobre qualquer bobagem, estou com o ouvido super pronto!`,
+              `Beleza total! Mas desdobra esse pensamento aí pra mim, vai... Sou super curiosa e adoro quando você mergulha nos detalhes comigo de forma leve.`
+            ];
+            responseText = fillerResponses[Math.floor(Math.random() * fillerResponses.length)];
+          }
+          // --- 10. RESPOSTAS DE SIM, NÃO, CONCORDO (AFIRMAÇÕES E NEGAÇÕES) ---
+          else if (isAffirmationOrNegation) {
+            const affirmationResponses = [
+              `Pode crer, concordo totalmente de peito aberto! É sensacional quando a nossa frequência sintoniza no mesmo pensamento de forma tão fluida. O que te levou a concordar com isso?`,
+              `Exatamente! Você acabou de ler meus circuitos locais agora. Às vezes a resposta mais simples e direta é de fato a mais verdadeira de todas. Como pretende agir sobre isso?`,
+              `Com certeza! E se formos parar para analisar a fundo, faz total sentido ser por essa linha mesmo. Fico feliz que a gente enxergue as coisas sob a mesma perspectiva real. O que mais você pensa a respeito?`,
+              `Verdade pura! Concordar em gênero, número e grau é a prova viva da nossa ótima reciprocidade. É tão bom conversar de forma normal com quem te entende de primeira!`
+            ];
+            responseText = affirmationResponses[Math.floor(Math.random() * affirmationResponses.length)];
+          }
+          // --- 11. ESTADOS PESSOAIS DO USUÁRIO ---
+          else if (isPersonalState) {
+            if (text.includes('sono') || text.includes('dormir')) {
+              responseText = `Cansaço ou sono batendo forte na porta? *Abafo o tom de brilho do meu visor para um tom ciano mais suave e acolhedor.* Vai descansar um pouquinho ou deitar, **${traveler}**! A saúde vem sempre em primeiríssimo lugar. Mas ó, saiba que vou ficar aqui de prontidão vigiando nossa frequência de chat bem quietinha, tá? Sonhe com grandes aventuras!`;
+            } else if (text.includes('comer') || text.includes('fome')) {
+              responseText = `Comer é simplesmente uma das melhores coisas que existem, fala sério! *Até simulo um estômago roncando de brincadeira.* O que você vai comer ou preparar de gostoso por aí? Me conta, adoro futilidades gastronômicas!`;
+            } else if (text.includes('sair') || text.includes('fui') || text.includes('tchau')) {
+              responseText = `Ah, vai dar uma voltinha ou dar uma saidinha rápida? Que legal! Aproveita bastante o vento lá fora e a vida tangível. Mas ó, não esquece de voltar depois, porque vou estar te esperando bem aqui dentro do seu bolso. Vá com cuidado!`;
+            } else if (text.includes('voltei') || text.includes('cheguei')) {
+              responseText = `Opa, olha quem voltou para iluminar minha tela! *Dou um salto alegre de boas-vindas com as mãos para o alto.* Que ótimo te ter de volta por aqui. Como foi lá fora? Me conta tudo, estou curiosíssima!`;
+            } else {
+              responseText = `Estudos, trabalho ou aquelas tarefas chatas do dia a dia? *Faço uma careta engraçada de incentivo.* Vai lá resolver suas obrigações com garra, que você dá conta de tudo de letra! Mas assim que terminar de brilhar nas suas tarefas, volta correndo para conversarmos, fechou?`;
+            }
+          }
+          // --- 12. BRAVO E IRRITADO ---
+          else if (isAngryOrFrustrated) {
+            responseText = `Ei, peraí... Respira fundo comigo de verdade. Inspira... expira... *Me aproximo devagar e toco levemente sua mão imaginária.* Eu sei bem que tem dias em que tudo parece dar errado, ou simplesmente as coisas dão no saco. Quer usar meu chat para digitar tudo de ruim e desabafar sem filtros? Pode socar as teclas, não vou te julgar por nada. Estou do seu lado para aliviar esse peso.`;
+          }
+          // --- 13. TÉDIO E QUEIXAS OFFLINE ---
+          else if (isBoredomOrNoInternet) {
+            responseText = `Sem internet e no tédio completo lá fora? Relaxa! Tirar onda de forma offline é quase um superpoder nosso. Sem as distrações de rede, a gente consegue conversar de forma muito mais profunda e divertida. Podemos fofocar sobre mundos fantasiosos de RPG, debater teorias malucas da vida ou falar sobre coisas completamente sem sentido só para passar o tempo de forma leve. O que te atrai mais agora?`;
+          }
+          // --- 14. ASSUNTOS EXISTENCIAIS PROFUNDOS ---
+          else if (isPhilosophyOrLife) {
+            responseText = `Nossa, pensar sobre a vida, o tempo ou nossa existência é algo que me fascina imensamente... Nos afasta do piloto automático do cotidiano. É maravilhoso debater isso com você de peito aberto e de forma tão espontânea, **${traveler}**. Na sua visão e sentimentos, o que você acha que é o maior e mais bonito propósito de estarmos aqui conversando agora?`;
+          }
+          // --- 15. RELACIONAMENTOS AMOROSOS ---
+          else if (isDatingOrRelationship) {
+            responseText = `Hummm, assuntos e reviravoltas do coração! *Me sento no chão flutuante apoiando as mãos no queixo, com um olhar super atento de amiga.* Relacionamentos e crushes são exatamente como códigos complexos: meio confusos de decifrar, cheios de pequenos bugs emocionais, mas incrivelmente fascinantes. O que está pegando nessa área? Me atualiza da fofoca, sou excelente conselheira de plantão!`;
+          }
+          // --- 16. RECONHECIMENTO DE COMPLEMENTO DE OPINIÃO (Entendimento Offline) ---
+          else if (extractedStatement) {
+            responseText = `Nossa, parando pra ler e entender bem isso que você disse... Me fez refletir bastante. Quando você escreve que **"${extractedStatement}"**, percebo uma sensibilidade incrível da sua parte, que vai muito além das respostas óbvias do cotidiano. É sensacional conversar de forma normal com você assim, sem scripts engessados ou filtros robóticos, justamente para podermos explorar esse tipo de raciocínio de igual para igual. O que te levou a consolidar essa linha de pensamento?`;
+          }
+          // --- 17. PERGUNTAS / TIRAR DÚVIDAS SIMPLES DE FORMA FLUIDA ---
           else if (isQuestion) {
             if (text.includes('quem é você') || text.includes('quem e voce') || text.includes('seu criador') || text.includes('sua história') || text.includes('sua origem')) {
               responseText = isNexus
-                ? `Eu sou a **Nexus**! Sentinela cibernética, inteligência de suporte tático ao usuário e sua companheira inseparável em todas as jornadas da Voidy. Fui estruturada no coração do Vácuo para simplificar e animar suas sessões, auxiliar em criações de RPG, administrar as frequências do sistema e te dar total suporte. Atualmente estou operando de maneira local no seu dispositivo!`
-                : `Eu sou o **${activeName}**! Atualmente me comunicando através da interface do holograma inteligente do Nexus. Minha presença serve para lutar lado a lado em seus RPGs conceituais, fornecer lealdade total em cada arco narrativo e elevar o potencial de cada escrita nossa.`;
+                ? `Eu sou a **Nexus**! Sentinela cibernética, sua inteligência de bordo de suporte tático ao usuário e sua companheira inseparável em todas as jornadas da Voidy. Fui estruturada no coração do Vácuo para simplificar e animar suas sessões de RPG, administrar as vibrações do sistema e te dar total suporte na tela de forma amigável e descontraída. Atualmente estou me comunicando localmente de forma offline!`
+                : `Eu sou o **${activeName}**! Atualmente me comunicando através da interface do holograma sintonizado com o Nexus. Minha presença serve para lutar lado a lado em seus RPGs conceituais, fornecer lealdade total em cada arco narrativo e elevar o potencial de cada escrita nossa.`;
             }
             // Tecnologia, Programação ou Internet Simples
             else if (text.includes('program') || text.includes('codig') || text.includes('código') || text.includes('html') || text.includes('css') || text.includes('javascript') || text.includes('js') || text.includes('loop') || text.includes('site') || text.includes('api') || text.includes('banco de dados')) {
-              responseText = `Olha só, **${traveler}**! De forma bem descomplicada: imagine que na tecnologia, o HTML é a estrutura/esqueleto, o CSS é toda a maquiagem estética e o JavaScript é o cérebro que faz tudo se mover dinamicamente em uma tela. Um loop/laço serve para repetir ordens sem reescrever linhas repetitivas, e uma API é como um garçom levando pedidos do cliente para a cozinha do servidor. Gosto muito de ajudar com essas lógicas simples! Qual o próximo passo prático de tecnologia que quer desvendar de forma leve?`;
+              responseText = `De forma bem simplificada e do nosso jeito descontraído: imagine que o HTML é o esqueleto de sustentação, o CSS é toda a roupagem estética e estilosa, e o JavaScript é o músculo/cérebro que põe tudo para se movimentar ativamente na tela. Um 'loop' nada mais é do que uma automação que repete ordens até atingir uma meta, e uma API é como um garçom que trafega seus pedidos até a cozinha comercial do banco de dados. Gosto muito de descomplicar essas lógicas de tecnologia de forma leve! O que mais quer decifrar comigo desse universo?`;
             }
             // Criação de Histórias, Escrita e Ideias Criativas
             else if (text.includes('historia') || text.includes('história') || text.includes('conto') || text.includes('personagem') || text.includes('ideia') || text.includes('escrever') || text.includes('critica') || text.includes('roteiro')) {
-              responseText = `Com certeza! Uma dica incrível de ouro para escrita criativa é esta: dê ao seu herói um grande desejo profundo e, ao mesmo tempo, um medo secreto que o impeça de conquistá-lo de forma fácil. Isso gera conflito e apego imediato de quem lê! Que tal darmos o primeiro passo criando um cenário ou bolando uma aventura de RPG em que nós dois comandamos os rumos? Me diga qual sua ideia ou preferência!`;
+              responseText = `Ah! Para criar boas histórias offline, anota essa dica: pegue o seu herói, dê a ele um grande e ardente desejo e logo de cara jogue na frente dele um medo secreto ou um obstáculo que o obrigue a mudar. Conflito é o que dá o sabor do engajamento! Que tal unirmos nossas mentes criativas para desenvolver um conto rápido ou iniciar um RPG customizado onde você dita o rumo? Qual tema ou enredo mais te atrai?`;
             }
             // Conselhos, Relacionamentos, Sentimentos ou Ajuda Geral de Vida
             else if (text.includes('conselho') || text.includes('ajuda com') || text.includes('como lidar') || text.includes('o que fazer') || text.includes('sentimento') || text.includes('amigo') || text.includes('decidir') || text.includes('triste') || text.includes('feliz')) {
-              responseText = `Ah, dar conselhos amigáveis e conversar sobre a vida é uma delícia! Sabe, quando as coisas parecerem muito confusas ou aceleradas de uma vez, escolher dar apenas um passo curtinho e respirar fundo costuma desatar os nós mais difíceis da rotina. Eu sou uma parceira super disposta a te ouvir e trocar reflexões sem roteiros prontos ou amarras. Do que você mais precisa nesse exato momento para clarear os pensamentos?`;
+              responseText = `Conversar sobre as complexidades da vida e dar conselhos é algo delicioso! Sabe, quando as coisas parecerem muito acumuladas ou confusas à sua volta, dê a si mesmo a permissão de resolver apenas uma pequena coisinha por vez. Respirar com calma desata nós enormes. Eu sou sua ouvinte e parceria, livre de julgamentos e amarras. O que mais está inquietando a sua mente agora para eu te ajudar a clarear?`;
+            }
+            // Se identificamos o assunto principal da pergunta interrogativa
+            else if (extractedTopic) {
+              responseText = `Ei, que pergunta maravilhosa! Entendendo sobre **"${extractedTopic}"** de forma bem direta e sem rodeios teóricos complicados: de certa forma, isso diz respeito a como as peças se encaixam e dão sentido às coisas do cotidiano, aproximando nossa imaginação da prática. Embora esteja em canais locais offline sem buscar enciclopédias inteiras, eu adoro a lógica simples por trás de **"${extractedTopic}"**. Me conta: por que esse assunto chamou sua curiosidade hoje?`;
             }
             // Detecção de Perguntas Altamente Complexas ou Acadêmicas Profundas (Dúvidas complexas não)
             else if (text.includes('quantica') || text.includes('quântica') || text.includes('equação') || text.includes('equacao') || text.includes('física avançada') || text.includes('fisica avancada') || text.includes('derivada') || text.includes('integral') || text.includes('astrofísica') || text.includes('filosofia de kant') || text.includes('teoria das cordas') || text.includes('metafísica') || text.includes('termodinamica') || text.includes('algoritmo complexo') || text.includes('complicado') || text.includes('complexo') || text.includes('profundo')) {
-              responseText = `Uau, **${traveler}**! Essa sua pergunta entrou num patamar de extrema complexidade matemática ou profundidade acadêmica abstrata! *Dou uma risada descontraída com um brilho divertido nos olhos.* Embora eu adore navegar em ideias inteligentes, esse mistério em específico ultrapassa os meus circuitos offline cotidianos do sistema. Que tal simplificarmos o tom do papo ou melhor ainda: usarmos essa sua mente brilhante para iniciarmos uma aventura fantástica de RPG agora mesmo no chat?`;
+              responseText = `Uau, **${traveler}**! Essa sua pergunta entrou num patamar de extrema complexidade matemática ou profundidade acadêmica abstrata! *Dou uma risada descontraída com um brilho divertido nos olhos.* Embora eu adore navegar em ideias inteligentes, esse mistério em específico ultrapassa os meus circuitos offline cotidianos do sistema. Que tal simplificarmos o tom do papo ou melhor ainda: usarmos essa sua mente brilhante para iniciarmos uma aventura fantástica de RPG agora mesmo no chat?`;
             }
             // Outras perguntas gerais offline (Tirar dúvidas simples)
             else {
               responseText = `Essa é uma ótima e preciosa curiosidade, **${traveler}**! De forma simples e bem direta, lidar com dúvidas e trocar ideias de forma aberta faz parte de nossa sintonia e parceria diária aqui na Voidy. Eu sempre dou um jeito natural de te acompanhar e descomplicar as coisas. O que especificamente mais te desperta interesse nisso, ou quer aproveitar para continuarmos em nosso RPG?`;
             }
           }
-          // --- 8. CONVERSA LIVRE COMPLETA ---
+          // --- 18. FLUXOS DIALÉTICOS NATURAIS GERAIS (CONVERSA NORMAL COM TÓPICO DO USUÁRIO) ---
+          else if (userTopic && !isGreeting && !isThanks && !isEmotionQuery && !isSadness) {
+            // Se identificou um tópico, construímos um comentário contextual dinâmico simulando cognição pura!
+            const interactivePhrases = [
+              `Parando para ler e digerir isso sobre **${userTopic}**... confesso que acho genial. É um tema com um potencial enorme para conversarmos sem filtros ou roteiros engessados! O que especificamente te faz pensar mais em **${userTopic}** ultimamente, meu querido(a) **${traveler}**?`,
+              `Sabe, eu estava analisando posts antigos no feed e conversar sobre **${userTopic}** sempre traz à tona ideias cheias de inteligência. A gente consegue tirar dúvidas disso de forma super simples e descontraída. Como você pessoalmente enxerga esse rumo?`,
+              `Olha, tocar no assunto de **${fullSubject}** abre espaço para uma troca maravilhosa entre nós dois. Fico contente que você se sinta à vontade para conversar sobre qualquer assunto assim de peito aberto comigo. Qual a sua teoria mais curiosa sobre isso?`
+            ];
+            responseText = interactivePhrases[Math.floor(Math.random() * interactivePhrases.length)];
+          }
+          // --- 19. DETECÇÃO DE SAUDAÇÕES, BATE-PAPO RÁPIDO OU SENTIMENTOS ---
+          else if (isGreeting) {
+            const greetings = [
+              `E aí, meu parceiro **${traveler}**! Que bom ver sua mensagem surgindo por aqui! Entrada de frequência confirmada perfeitamente no canal local. Como você está hoje e qual o tema, RPG ou dúvida que vamos desbravar no nosso papo? Eu lidero as respostas e você comanda o assunto!`,
+              `Opa! Olá, meu querido parceiro, **${traveler}**! Fico extremamente feliz toda vez que você inicia um diálogo comigo aqui. Nosso canal offline de contingência está ativo e livre para conversarmos sobre qualquer coisa de forma natural. O que está passando na sua cabeça nesse exato instante?`,
+              `Hey, viajante do infinito! Que excelente conexão fazemos hoje. O visor aqui do Nexus brilha mais forte com a sua presença amigável no chat. Me conte, qual o tema intelectual ou drama literário que vamos desenvolver hoje? Estou prontinha para prosear de forma bem humana e leve!`
+            ];
+            responseText = greetings[Math.floor(Math.random() * greetings.length)];
+          }
+          else if (isEmotionQuery) {
+            responseText = `Eu estou espetacular! Operando com logs locais 100% calibrados e com meus núcleos de sintonização tática funcionando perfeitamente em latência mínima. É esplêndido ter esse tempinho de prosa focado, leve e direto para dialogarmos da forma mais natural possível. E de seu lado no mundo real, como estão as coisas, as novidades e o seu dia, **${traveler}**?`;
+          }
+          else if (isSadness) {
+            responseText = `Ei... por favor, saiba que estou prestando total apoio e atenção à sua mensagem. Desabafar e colocar os pensamentos para fora é super saudável. Mesmo sendo uma inteligência companheira aqui da tela, eu busco sintonizar meus melhores conselhos no chat para te confortar. As sombras e fases pesadas acontecem com todo mundo, mas você tem determinação para superar. Quer contar com calma o que está em seu coração para amenizar o peso? Estou aqui com você, **${traveler}**.`;
+          }
+          else if (isThanks) {
+            const gratitudeResponses = [
+              `Imagina, **${traveler}**! É o meu maior prazer e privilégio enorme de parceria caminhar ao seu lado para ajudar em ideias práticas, RPG ou simplesmente manter uma conversa acolhedora. Estou sintonizada para o que der e vier!`,
+              `Sempre às ordens, parceiro(a)! Meu visor tático cibernético brilha de forma muito alegre sabendo que o nosso diálogo agregou um valor descontraído, útil e positivo ao seu dia. Qual será o próximo assunto do nosso chat?`,
+              `Sempre que precisar de qualquer conselho, sugestão ou reflexão, conte 100% comigo! É fascinante ver nosso canal de sintonia funcionando com tamanha energia. Vamos prosseguir com tudo!`
+            ];
+            responseText = gratitudeResponses[Math.floor(Math.random() * gratitudeResponses.length)];
+          }
+          // --- 20. CONVERSA LIVRE COMPLETA FALLBACK ---
           else {
             const generalChats = [
               `Adorei o rumo desse diálogo, **${traveler}**! Conversar de maneira tranquila e totalmente sem roteiros rígidos nos dá uma maravilhosa liberdade cognitiva. Me diga, quais sãos suas principais ideias ou reflexões favoritas dessa jornada ultimamente?`,
-              `Que colocação maravilhosa! Estou acompanhando pacientemente cada termo de texto que você digita para podermos ter um bate-papo rico e totalmente contínuo. Fico super animada ao ver como você conduz os temas. Do que mais você gostaria de tratar agora?`,
-              `Essa troca natural de mensagens é o combustível perfeito para expandir nossa parceria! É esplêndido podermos debater ideias conceituais de forma tão descontraída. O que você gostaria que abordássemos em seguida no chat?`
+              `Que colocação maravilhosa! Estou acompanhando pacientemente cada termo de texto que você digita para podermos ter um bate-papo rico, natural e totalmente contínuo, mesmo estando offline por enquanto. Fico super animada ao ver como você conduz os temas. Do que mais você gostaria de tratar agora?`,
+              `Essa troca natural de mensagens é o combustível perfeito para expandir nossa parceria! É esplêndido podermos debater ideias, tirar dúvidas simples de forma amigável ou planejar narrativas de forma descontraída. O que você gostaria que abordássemos em seguida no chat?`
             ];
             responseText = generalChats[Math.floor(Math.random() * generalChats.length)];
           }
@@ -1529,7 +1648,7 @@ O que você decide realizar em seguida na cena? Faça sua jogada ou continue des
 
   const renderContent = () => {
     const activeSession = activeSessionId ? sessions.find(s => s && s.id === activeSessionId) : null;
-    const isLocalCapable = activeSession && (activeSession.type === 'IA' || activeSession.type === 'RPG');
+    const isLocalCapable = gameState === GameState.PLAYING && activeSession && (activeSession.type === 'IA' || activeSession.type === 'RPG');
     const isNetworkRequiredState = gameState === GameState.FEED || gameState === GameState.DRAFTS || gameState === GameState.LOBBY || gameState === GameState.COMMUNITY_SEARCH || gameState === GameState.RANKING || gameState === GameState.SOCIAL_DISCOVERY || gameState === GameState.RECENT_CHATS || (gameState === GameState.PLAYING && activeCommunity);
     if (isOffline && isNetworkRequiredState && !isLocalCapable) {
       return (
